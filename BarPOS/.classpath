@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="D:/Downloads/Programs/sqlite/sqlite-jdbc-3.36.0.3.jar"/>
+	<classpathentry kind="lib" path="D:/Downloads/Programs/sqlite/rs2xml/rs2xml/rs2xml.jar"/>
+	<classpathentry kind="lib" path="jgoodies-forms-1.8.0.jar" sourcepath="jgoodies-forms-1.8.0-sources.jar"/>
+	<classpathentry kind="lib" path="D:/Downloads/Programs/jcalendar-1.4/lib/jcalendar-1.4.jar"/>
+	<classpathentry kind="lib" path="D:/Downloads/Programs/poi-3.17.jar"/>
+	<classpathentry kind="lib" path="D:/Downloads/Programs/log4j/log4j-core-2.17.2.0001L.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
