@@ -19,6 +19,7 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.StringTokenizer;
 
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
@@ -228,6 +229,9 @@ public class POS extends JFrame {
 	        return this;
 	    }
 	};
+	private JTextField searchOrderId;
+	private JTextField searchProduct;
+	private JTextField searchProd;
 	
 
 	
@@ -666,6 +670,8 @@ public class POS extends JFrame {
 	public void refreshTable(JTable table) {
 		DefaultTableModel dtm = (DefaultTableModel) table.getModel();
 		dtm.setRowCount(0);
+		searchProd.setText(null);
+		
 		if(table == liquorTable) {
 			displayAllLiquor();
 		} 
@@ -722,6 +728,21 @@ public class POS extends JFrame {
 		}
 	}
 	
+	public void refreshSales() {
+		dtmLiquor = (DefaultTableModel) salesLiquor.getModel();
+		dtmLiquor.setRowCount(0);
+		displayAllLiquorSales();
+		
+		dtmPulutan = (DefaultTableModel) salesPulutan.getModel();
+		dtmPulutan.setRowCount(0);
+		displayAllPulutanSales();
+		
+		dateFrom.setDate(null);
+		dateTo.setDate(null);
+		searchOrderId.setText(null);
+		searchProduct.setText(null);
+	}
+	
 	public void computeSalesTotal(JTable table) {		
 		DefaultTableModel dtm = (DefaultTableModel) table.getModel();
 		for(int i=0; i < dtm.getRowCount(); i++) {
@@ -736,6 +757,223 @@ public class POS extends JFrame {
 		totalLiquors.setText(d.format(liquorSalesTotal).toString());
 		totalPulutan.setText(d.format(pulutanSalesTotal).toString());
 		allTotal.setText(d.format(liquorSalesTotal+pulutanSalesTotal).toString());
+	}
+	
+	public void displayProductByName(String name){
+		editField_name.setText(null);
+		editField_price.setText(null);
+		editField_qty.setText(null);
+		
+		dtmLiquor = (DefaultTableModel) liquorTable.getModel();
+		dtmLiquor.setRowCount(0);
+		
+		dtmPulutan = (DefaultTableModel) pulutanTable.getModel();
+		dtmPulutan.setRowCount(0);
+		
+		try {
+			String fetchAll = "SELECT categoryName, liquorName, price, qty FROM liquors INNER JOIN liquorCategories ON liquors.categoryID = liquorCategories.categoryID ORDER BY liquors.categoryID";
+			ps = conn.prepareStatement(fetchAll);
+			rs = ps.executeQuery();
+			
+			while(rs.next()) {				
+				String ctgName = rs.getString("categoryName");
+				String liquorName = rs.getString("liquorName");
+				Double price = rs.getDouble("price");
+				int qty = rs.getInt("qty");
+				
+				if(liquorName.equals(name)) {
+					row = new Object[]{ctgName, liquorName, d.format(price), qty,"DELETE"};
+					dtmLiquor.addRow(row);
+				}
+			}
+		} catch (SQLException e) {
+			System.out.println(e.toString());
+		} finally {
+			try {
+				rs.close();
+				ps.close();
+			} catch (Exception e2) {
+				System.out.println(e2.toString());
+			}
+		}
+		
+		try {
+			String fetchAll = "SELECT * FROM pulutan ORDER BY pulutanName";
+			ps = conn.prepareStatement(fetchAll);
+			rs = ps.executeQuery();
+			
+			while(rs.next()) {
+				
+				String ctgName = "Pulutan";
+				String pulutanName = rs.getString("pulutanName");
+				Double price = rs.getDouble("price");
+				int qty = rs.getInt("qty");
+				
+				if(pulutanName.equals(name)) {
+					row = new Object[]{ctgName, pulutanName, d.format(price),qty,"DELETE"};
+			        dtmPulutan.addRow(row);
+				}
+			}
+		} catch (SQLException e) {
+			System.out.println(e.toString());
+		} finally {
+			try {
+				rs.close();
+				ps.close();
+			} catch (Exception e2) {
+				System.out.println(e2.toString());
+			}
+		}
+		
+	}
+	
+	public void displaySalesByProductName(String prodToSearch) {
+		searchOrderId.setText(null);
+		if(dateFrom != null && dateTo != null) {
+			dateFrom.setDate(null);
+			dateTo.setDate(null);
+		}
+		dtmLiquor = (DefaultTableModel) salesLiquor.getModel();
+		dtmLiquor.setRowCount(0);
+		
+		dtmPulutan = (DefaultTableModel) salesPulutan.getModel();
+		dtmPulutan.setRowCount(0);
+		
+		try {
+			String fetchLiquorSales = "SELECT orderID, liquorName, orderQty, price FROM orderline INNER JOIN liquors ON orderline.productID = liquors.liquorID AND orderline.categoryID=liquors.productCategory";
+			ps = conn.prepareStatement(fetchLiquorSales);
+			rs = ps.executeQuery();
+					
+			while(rs.next()) {
+				Long orderID = rs.getLong("orderID");
+				String liqName = rs.getString("liquorName");
+				int qty = rs.getInt("orderQty");
+				Double price = rs.getDouble("price");
+				
+				if(liqName.equals(prodToSearch)) {
+					row = new Object[]{orderID, liqName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
+			        dtmLiquor.addRow(row);
+				}				
+			}
+			liquorSalesTotal=0.00;
+			computeSalesTotal(salesLiquor);
+			
+		} catch (Exception e) {
+			System.out.println(e.toString());
+		} finally {
+			try {
+				rs.close();
+				ps.close();
+			} catch (Exception e2) {
+				System.out.println(e2.toString());
+			}
+		}
+		
+		try {
+			String fetchPulutanSales = "SELECT orderID, pulutanName, orderQty, price FROM orderline INNER JOIN pulutan ON orderline.productID = pulutan.pulutanID AND orderline.categoryID=pulutan.productCategory";
+			ps = conn.prepareStatement(fetchPulutanSales);
+			rs = ps.executeQuery();
+					
+			while(rs.next()) {
+				Long orderID = rs.getLong("orderID");
+				String pulutanName = rs.getString("pulutanName");
+				int qty = rs.getInt("orderQty");
+				Double price = rs.getDouble("price");
+				
+				if(pulutanName.equals(prodToSearch)) {
+					row = new Object[]{orderID, pulutanName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
+			        dtmPulutan.addRow(row);
+				}				
+			}
+			pulutanSalesTotal=0.00;
+			computeSalesTotal(salesPulutan);
+			
+		} catch (Exception e) {
+			System.out.println(e.toString());
+		} finally {
+			try {
+				rs.close();
+				ps.close();
+			} catch (Exception e2) {
+				System.out.println(e2.toString());
+			}
+		}
+	}
+	
+	public void displaySalesById(Long idToSearch) {
+		if(dateFrom != null && dateTo != null) {
+			dateFrom.setDate(null);
+			dateTo.setDate(null);
+		}
+		dtmLiquor = (DefaultTableModel) salesLiquor.getModel();
+		dtmLiquor.setRowCount(0);
+		
+		dtmPulutan = (DefaultTableModel) salesPulutan.getModel();
+		dtmPulutan.setRowCount(0);
+		
+		try {
+			String fetchLiquorSales = "SELECT orderID, liquorName, orderQty, price FROM orderline INNER JOIN liquors ON orderline.productID = liquors.liquorID AND orderline.categoryID=liquors.productCategory";
+			ps = conn.prepareStatement(fetchLiquorSales);
+			rs = ps.executeQuery();
+					
+			while(rs.next()) {
+				Long orderID = rs.getLong("orderID");
+				String liqName = rs.getString("liquorName");
+				int qty = rs.getInt("orderQty");
+				Double price = rs.getDouble("price");
+				
+				int eq = orderID.compareTo(idToSearch);
+				
+				if(eq == 0) {
+					row = new Object[]{orderID, liqName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
+			        dtmLiquor.addRow(row);
+				}				
+			}
+			liquorSalesTotal=0.00;
+			computeSalesTotal(salesLiquor);
+			
+		} catch (Exception e) {
+			System.out.println(e.toString());
+		} finally {
+			try {
+				rs.close();
+				ps.close();
+			} catch (Exception e2) {
+				System.out.println(e2.toString());
+			}
+		}
+		
+		try {
+			String fetchPulutanSales = "SELECT orderID, pulutanName, orderQty, price FROM orderline INNER JOIN pulutan ON orderline.productID = pulutan.pulutanID AND orderline.categoryID=pulutan.productCategory";
+			ps = conn.prepareStatement(fetchPulutanSales);
+			rs = ps.executeQuery();
+					
+			while(rs.next()) {
+				Long orderID = rs.getLong("orderID");
+				String pulutanName = rs.getString("pulutanName");
+				int qty = rs.getInt("orderQty");
+				Double price = rs.getDouble("price");
+				
+				int eq = orderID.compareTo(idToSearch);
+				
+				if(eq==0) {
+					row = new Object[]{orderID, pulutanName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
+			        dtmPulutan.addRow(row);
+				}				
+			}
+			pulutanSalesTotal=0.00;
+			computeSalesTotal(salesPulutan);
+			
+		} catch (Exception e) {
+			System.out.println(e.toString());
+		} finally {
+			try {
+				rs.close();
+				ps.close();
+			} catch (Exception e2) {
+				System.out.println(e2.toString());
+			}
+		}
 	}
 	
 	public void generateLiquorSales(Date dfrom, Date dto) {
@@ -806,7 +1044,7 @@ public class POS extends JFrame {
 					
 			while(rs.next()) {
 				Long orderID = rs.getLong("orderID");
-				String liqName = rs.getString("pulutanName");
+				String pulutanName = rs.getString("pulutanName");
 				int qty = rs.getInt("orderQty");
 				Double price = rs.getDouble("price");
 				
@@ -819,7 +1057,7 @@ public class POS extends JFrame {
 				int idTo = slicedOrderID.compareTo(toLong);
 				
 				if((idFrom >= 0 && idTo <= 0)) {
-					row = new Object[]{orderID, liqName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
+					row = new Object[]{orderID, pulutanName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
 			        dtmPulutan.addRow(row);
 				}				
 			}
@@ -880,12 +1118,12 @@ public class POS extends JFrame {
 					
 			while(rs.next()) {
 				Long orderID = rs.getLong("orderID");
-				String liqName = rs.getString("pulutanName");
+				String pulutanName = rs.getString("pulutanName");
 				int qty = rs.getInt("orderQty");
 				Double price = rs.getDouble("price");
 				
 				
-				row = new Object[]{orderID, liqName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
+				row = new Object[]{orderID, pulutanName, qty, d.format(price),d.format(Double.valueOf(qty)*price)};
 		        dtmPulutan.addRow(row);
 			}
 			pulutanSalesTotal=0.00;
@@ -1000,7 +1238,7 @@ public class POS extends JFrame {
 				displayAllLiquorSales();
 				displayAllPulutanSales();
 				dateFrom.setDate(null);
-				dateTo.setDate(null);
+				dateTo.setDate(null);	
 			}
 		});
 		btnHome_.setIcon(new ImageIcon(POS.class.getResource("/img/btn-home2.png")));
@@ -1014,6 +1252,269 @@ public class POS extends JFrame {
 		mainNav.setVisible(false);
 		
 		contentPane.add(mainNav);
+		
+		Inventory = new JPanel();
+		Inventory.setBounds(0, 88, 1520, 737);
+		contentPane.add(Inventory);
+		Inventory.setVisible(false);
+		Inventory.setLayout(null);
+		
+		JButton btnCancel = new JButton("");
+		btnCancel.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				editField_name.setText("");
+				editField_price.setText("");
+				editField_qty.setText("");
+				pulutanTable.revalidate();
+				pulutanTable.repaint();
+				liquorTable.revalidate();
+				liquorTable.repaint();
+			}
+		});
+		btnCancel.setIcon(new ImageIcon(POS.class.getResource("/img/inv-cancel-btn.png")));
+		btnCancel.setBounds(1159, 405, 339, 33);
+		Inventory.add(btnCancel);
+		
+		editField_qty = new JTextField();
+		editField_qty.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+		editField_qty.setColumns(10);
+		editField_qty.setBounds(1159, 310, 336, 30);
+		Inventory.add(editField_qty);
+		
+		editField_name = new JTextField();
+		editField_name.setEditable(false);
+		editField_name.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+		editField_name.setBounds(1159, 183, 336, 30);
+		Inventory.add(editField_name);
+		editField_name.setColumns(10);
+		
+		editField_price = new JTextField();
+		editField_price.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+		editField_price.setColumns(10);
+		editField_price.setBounds(1159, 247, 336, 30);
+		Inventory.add(editField_price);
+		
+		JButton btnSave = new JButton("");
+		btnSave.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				JTable activeTable = selectedTable;
+				
+				String editName = editField_name.getText();
+				Double editPrice = Double.valueOf(editField_price.getText());
+				int editQty = Integer.parseInt(editField_qty.getText());
+				
+				Liquor liquor = new Liquor(editName, editPrice, editQty, 0);
+				Pulutan pulutan = new Pulutan(editName, editPrice, editQty);
+				
+				if(activeTable == liquorTable) {
+					pos.editLiquor(liquor);
+				} else {
+					pos.editPulutan(pulutan);					
+				}
+				
+				refreshTable(liquorTable);
+				refreshTable(pulutanTable);
+				
+				editField_name.setText("");
+				editField_price.setText("");
+				editField_qty.setText("");
+			}
+		});
+		btnSave.setIcon(new ImageIcon(POS.class.getResource("/img/inv-save-btn.png")));
+		btnSave.setBounds(1159, 362, 339, 33);
+		Inventory.add(btnSave);
+		
+		JButton btnAddProd = new JButton("");
+		btnAddProd.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				addProduct.show();
+				if(addProduct.added) {
+					refreshTable(liquorTable);
+					refreshTable(pulutanTable);
+				}
+			}
+		});
+		btnAddProd.setIcon(new ImageIcon(POS.class.getResource("/img/add-new.png")));
+		btnAddProd.setBounds(1159, 516, 339, 33);
+		Inventory.add(btnAddProd);
+		
+		JButton btnViewSales = new JButton("");
+		btnViewSales.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				Inventory.setVisible(false);
+				salesPanel.setVisible(true);
+				currentPanel = salesPanel;
+			}
+		});
+		btnViewSales.setIcon(new ImageIcon(POS.class.getResource("/img/view-sales.png")));
+		btnViewSales.setBounds(1159, 559, 339, 33);
+		Inventory.add(btnViewSales);
+		
+		JScrollPane liquor_scrollpane = new JScrollPane();
+		liquor_scrollpane.setViewportBorder(null);
+		liquor_scrollpane.setBounds(19, 67, 537, 650);
+		Inventory.add(liquor_scrollpane);
+		
+		liquorTable = new JTable();
+		liquorTable.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				displayForEdit(liquorTable);
+				int col = liquorTable.getSelectedColumn();
+				int row = liquorTable.getSelectedRow();
+				if(col == 4) {
+					String productName = liquorTable.getValueAt(row, 1).toString();
+					int confirm = JOptionPane.showConfirmDialog(null,"Are you sure to delete "+productName+"?", "Confirm Delete Product",JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+					if(confirm == JOptionPane.YES_OPTION) {
+						pos.deleteLiquor(productName);
+						editField_name.setText("");
+						editField_price.setText("");
+						editField_qty.setText("");
+						refreshTable(liquorTable);
+					} 					
+				}
+			}
+		});
+		liquorTable.setBorder(null);
+		liquorTable.setFont(new Font("Segoe UI", Font.BOLD, 16));
+		liquor_scrollpane.setViewportView(liquorTable);
+		liquorTable.setModel(new DefaultTableModel(
+			new Object[][] {
+			},
+			new String[] {
+				"Category", "Name", "Price", "Qty", "Delete"
+			}
+		) {
+			Class[] columnTypes = new Class[] {
+				String.class, String.class, Double.class, Integer.class, String.class
+			};
+			public Class getColumnClass(int columnIndex) {
+				return columnTypes[columnIndex];
+			}
+			boolean[] columnEditables = new boolean[] {
+				false, false, false, false, false
+			};
+			public boolean isCellEditable(int row, int column) {
+				return columnEditables[column];
+			}
+		});
+		liquorTable.getColumnModel().getColumn(0).setPreferredWidth(59);
+		liquorTable.getColumnModel().getColumn(1).setPreferredWidth(142);
+		liquorTable.getColumnModel().getColumn(2).setPreferredWidth(55);
+		liquorTable.getColumnModel().getColumn(3).setPreferredWidth(35);
+		liquorTable.getColumnModel().getColumn(4).setPreferredWidth(45);
+		
+		liquorTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
+		liquorTable.getColumnModel().getColumn(3).setCellRenderer(centerRenderer);
+		liquorTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer);
+		
+		liquorTable.getColumnModel().getColumn(4).setCellRenderer(new colorRenderer(Color.WHITE, new Color(135,49,51)));
+		
+				liquorTable.setRowHeight(30);
+				
+				JScrollPane pulutan_scrollPane = new JScrollPane();
+				pulutan_scrollPane.setBounds(578, 67, 537, 650);
+				Inventory.add(pulutan_scrollPane);
+				
+				pulutanTable = new JTable();
+				pulutanTable.addMouseListener(new MouseAdapter() {
+					@Override
+					public void mouseClicked(MouseEvent e) {
+						displayForEdit(pulutanTable);
+						int col = pulutanTable.getSelectedColumn();
+						int row = pulutanTable.getSelectedRow();
+						if(col == 4) {
+							String productName = pulutanTable.getValueAt(row, 1).toString();
+							int confirm = JOptionPane.showConfirmDialog(null,"Are you sure you want to delete "+productName+"?", "Confirm Delete Product",JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+							if(confirm == JOptionPane.YES_OPTION) {
+								pos.deletePulutan(productName);
+								editField_name.setText("");
+								editField_price.setText("");
+								editField_qty.setText("");
+								refreshTable(pulutanTable);
+							}
+						}
+					}
+				});
+				pulutanTable.setModel(new DefaultTableModel(
+					new Object[][] {
+					},
+					new String[] {
+						"Category", "Name", "Price", "Qty", "Delete"
+					}
+				) {
+					Class[] columnTypes = new Class[] {
+						String.class, String.class, Double.class, Integer.class, String.class
+					};
+					public Class getColumnClass(int columnIndex) {
+						return columnTypes[columnIndex];
+					}
+					boolean[] columnEditables = new boolean[] {
+						false, false, false, false, true
+					};
+					public boolean isCellEditable(int row, int column) {
+						return columnEditables[column];
+					}
+				});
+				pulutanTable.getColumnModel().getColumn(0).setPreferredWidth(59);
+				pulutanTable.getColumnModel().getColumn(1).setPreferredWidth(142);
+				pulutanTable.getColumnModel().getColumn(2).setPreferredWidth(55);
+				pulutanTable.getColumnModel().getColumn(3).setPreferredWidth(35);
+				pulutanTable.getColumnModel().getColumn(4).setPreferredWidth(45);
+				pulutan_scrollPane.setViewportView(pulutanTable);
+				pulutanTable.setFont(new Font("Segoe UI", Font.BOLD, 16));
+				
+				pulutanTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
+				pulutanTable.getColumnModel().getColumn(3).setCellRenderer(centerRenderer);
+				pulutanTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer);
+				
+				pulutanTable.getColumnModel().getColumn(4).setCellRenderer(new colorRenderer(Color.WHITE, new Color(135,49,51)));
+				
+				pulutanTable.setRowHeight(30);
+				
+				JButton btnRefresh = new JButton("");
+				btnRefresh.addMouseListener(new MouseAdapter() {
+					@Override
+					public void mouseClicked(MouseEvent e) {
+						refreshTable(liquorTable);
+						refreshTable(pulutanTable);
+					}
+				});
+				btnRefresh.setIcon(new ImageIcon(POS.class.getResource("/img/btn-refresh.png")));
+				btnRefresh.setBounds(1306, 628, 57, 57);
+				Inventory.add(btnRefresh);
+				
+				JButton btnSearchPr = new JButton("");
+				btnSearchPr.addMouseListener(new MouseAdapter() {
+					@Override
+					public void mouseClicked(MouseEvent e) {
+						displayProductByName(searchProd.getText());
+					}
+				});
+				btnSearchPr.setIcon(new ImageIcon(POS.class.getResource("/img/btn-search.png")));
+				btnSearchPr.setBounds(1473, 64, 30, 30);
+				Inventory.add(btnSearchPr);
+				
+				searchProd = new JTextField();
+				searchProd.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+				searchProd.setBounds(1151, 64, 320, 30);
+				Inventory.add(searchProd);
+				searchProd.setColumns(10);
+				
+				JLabel lblNewLabel = new JLabel("Search Product");
+				lblNewLabel.setForeground(Color.WHITE);
+				lblNewLabel.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+				lblNewLabel.setBounds(1151, 31, 154, 30);
+				Inventory.add(lblNewLabel);
+				
+				JLabel inventoryBG = new JLabel("New label");
+				inventoryBG.setBounds(0, 0, 1520, 737);
+				inventoryBG.setIcon(new ImageIcon(POS.class.getResource("/img/pos-inventory-bg2.png")));
+				Inventory.add(inventoryBG);
 		
 		salesPanel = new JPanel();
 		salesPanel.setBounds(0, 88, 1520, 737);
@@ -1045,17 +1546,29 @@ public class POS extends JFrame {
 			}
 		});
 		btnExportPdf.setIcon(new ImageIcon(POS.class.getResource("/img/sales-export-pdf.png")));
-		btnExportPdf.setBounds(1174, 566, 276, 45);
+		btnExportPdf.setBounds(1174, 580, 276, 45);
 		salesPanel.add(btnExportPdf);
-		btnBacktoInv.setBounds(1174, 622, 276, 39);
+		btnBacktoInv.setBounds(1174, 635, 276, 39);
 		salesPanel.add(btnBacktoInv);
 		
+		searchProduct = new JTextField();
+		searchProduct.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+		searchProduct.setColumns(10);
+		searchProduct.setBounds(1326, 406, 117, 30);
+		salesPanel.add(searchProduct);
+		
+		searchOrderId = new JTextField();
+		searchOrderId.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+		searchOrderId.setBounds(1125, 406, 117, 30);
+		salesPanel.add(searchOrderId);
+		searchOrderId.setColumns(10);
+		
 		dateFrom = new JDateChooser();
-		dateFrom.setBounds(1127, 338, 356, 30);
+		dateFrom.setBounds(1125, 338, 147, 30);
 		salesPanel.add(dateFrom);
 		
 		dateTo = new JDateChooser();
-		dateTo.setBounds(1127, 443, 356, 30);
+		dateTo.setBounds(1326, 338, 147, 30);
 		salesPanel.add(dateTo);
 		
 		allTotal = new JLabel("");
@@ -1174,7 +1687,7 @@ public class POS extends JFrame {
 			}
 		});
 		btnGenerate.setIcon(new ImageIcon(POS.class.getResource("/img/sales-generate-btn.png")));
-		btnGenerate.setBounds(1174, 510, 276, 45);
+		btnGenerate.setBounds(1174, 525, 276, 45);
 		salesPanel.add(btnGenerate);
 		
 		salesPdf = new JTextArea();
@@ -1183,249 +1696,44 @@ public class POS extends JFrame {
 		salesPdf.setVisible(false);
 		salesPanel.add(salesPdf);
 		
+		JButton btnRefreshSales = new JButton("");
+		btnRefreshSales.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				refreshSales();
+				
+			}
+		});
+		btnRefreshSales.setIcon(new ImageIcon(POS.class.getResource("/img/btn-refresh.png")));
+		btnRefreshSales.setBounds(1274, 458, 57, 57);
+		salesPanel.add(btnRefreshSales);
+		
+		JButton btnSearchById = new JButton("");
+		btnSearchById.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				displaySalesById(Long.parseLong(searchOrderId.getText()));
+			}
+		});
+		btnSearchById.setIcon(new ImageIcon(POS.class.getResource("/img/btn-search.png")));
+		btnSearchById.setBounds(1242, 406, 30, 30);
+		salesPanel.add(btnSearchById);
+		
+		JButton btnSearchbyProduct = new JButton("");
+		btnSearchbyProduct.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				displaySalesByProductName(searchProduct.getText());
+			}
+		});
+		btnSearchbyProduct.setIcon(new ImageIcon(POS.class.getResource("/img/btn-search.png")));
+		btnSearchbyProduct.setBounds(1443, 406, 30, 30);
+		salesPanel.add(btnSearchbyProduct);
+		
 		JLabel salesBg = new JLabel("New label");
 		salesBg.setIcon(new ImageIcon(POS.class.getResource("/img/pos-sales-bg.png")));
 		salesBg.setBounds(0, 0, 1520, 737);
 		salesPanel.add(salesBg);
-		
-		Inventory = new JPanel();
-		Inventory.setBounds(0, 88, 1520, 737);
-		contentPane.add(Inventory);
-		Inventory.setVisible(false);
-		Inventory.setLayout(null);
-		
-		JButton btnCancel = new JButton("");
-		btnCancel.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				editField_name.setText("");
-				editField_price.setText("");
-				editField_qty.setText("");
-				pulutanTable.revalidate();
-				pulutanTable.repaint();
-				liquorTable.revalidate();
-				liquorTable.repaint();
-				
-			}
-		});
-		btnCancel.setIcon(new ImageIcon(POS.class.getResource("/img/inv-cancel-btn.png")));
-		btnCancel.setBounds(1159, 405, 339, 33);
-		Inventory.add(btnCancel);
-		
-		editField_qty = new JTextField();
-		editField_qty.setFont(new Font("Segoe UI", Font.PLAIN, 20));
-		editField_qty.setColumns(10);
-		editField_qty.setBounds(1159, 310, 336, 30);
-		Inventory.add(editField_qty);
-		
-		editField_name = new JTextField();
-		editField_name.setEditable(false);
-		editField_name.setFont(new Font("Segoe UI", Font.PLAIN, 20));
-		editField_name.setBounds(1159, 183, 336, 30);
-		Inventory.add(editField_name);
-		editField_name.setColumns(10);
-		
-		editField_price = new JTextField();
-		editField_price.setFont(new Font("Segoe UI", Font.PLAIN, 20));
-		editField_price.setColumns(10);
-		editField_price.setBounds(1159, 247, 336, 30);
-		Inventory.add(editField_price);
-		
-		JButton btnSave = new JButton("");
-		btnSave.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				JTable activeTable = selectedTable;
-				
-				String editName = editField_name.getText();
-				Double editPrice = Double.valueOf(editField_price.getText());
-				int editQty = Integer.parseInt(editField_qty.getText());
-				
-				Liquor liquor = new Liquor(editName, editPrice, editQty, 0);
-				Pulutan pulutan = new Pulutan(editName, editPrice, editQty);
-				
-				if(activeTable == liquorTable) {
-					pos.editLiquor(liquor);
-					refreshTable(liquorTable);
-				} else {
-					pos.editPulutan(pulutan);
-					refreshTable(pulutanTable);
-				}
-				editField_name.setText("");
-				editField_price.setText("");
-				editField_qty.setText("");
-			}
-		});
-		btnSave.setIcon(new ImageIcon(POS.class.getResource("/img/inv-save-btn.png")));
-		btnSave.setBounds(1159, 362, 339, 33);
-		Inventory.add(btnSave);
-		
-		JButton btnAddProd = new JButton("");
-		btnAddProd.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				addProduct.show();
-				if(addProduct.added) {
-					refreshTable(liquorTable);
-					refreshTable(pulutanTable);
-				}
-			}
-		});
-		btnAddProd.setIcon(new ImageIcon(POS.class.getResource("/img/add-new.png")));
-		btnAddProd.setBounds(1159, 497, 339, 33);
-		Inventory.add(btnAddProd);
-		
-		JButton btnViewSales = new JButton("");
-		btnViewSales.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				Inventory.setVisible(false);
-				salesPanel.setVisible(true);
-				currentPanel = salesPanel;
-			}
-		});
-		btnViewSales.setIcon(new ImageIcon(POS.class.getResource("/img/view-sales.png")));
-		btnViewSales.setBounds(1159, 541, 339, 33);
-		Inventory.add(btnViewSales);
-		
-		JScrollPane liquor_scrollpane = new JScrollPane();
-		liquor_scrollpane.setViewportBorder(null);
-		liquor_scrollpane.setBounds(19, 67, 537, 650);
-		Inventory.add(liquor_scrollpane);
-		
-		liquorTable = new JTable();
-		liquorTable.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				displayForEdit(liquorTable);
-				int col = liquorTable.getSelectedColumn();
-				int row = liquorTable.getSelectedRow();
-				if(col == 4) {
-					String productName = liquorTable.getValueAt(row, 1).toString();
-					int confirm = JOptionPane.showConfirmDialog(null,"Are you sure to delete "+productName+"?", "Confirm Delete Product",JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-					if(confirm == JOptionPane.YES_OPTION) {
-						pos.deleteLiquor(productName);
-						editField_name.setText("");
-						editField_price.setText("");
-						editField_qty.setText("");
-						refreshTable(liquorTable);
-					} 					
-				}
-			}
-		});
-		liquorTable.setBorder(null);
-		liquorTable.setFont(new Font("Segoe UI", Font.BOLD, 16));
-		liquor_scrollpane.setViewportView(liquorTable);
-		liquorTable.setModel(new DefaultTableModel(
-			new Object[][] {
-			},
-			new String[] {
-				"Category", "Name", "Price", "Qty", "Delete"
-			}
-		) {
-			Class[] columnTypes = new Class[] {
-				String.class, String.class, Double.class, Integer.class, String.class
-			};
-			public Class getColumnClass(int columnIndex) {
-				return columnTypes[columnIndex];
-			}
-			boolean[] columnEditables = new boolean[] {
-				false, false, false, false, false
-			};
-			public boolean isCellEditable(int row, int column) {
-				return columnEditables[column];
-			}
-		});
-		liquorTable.getColumnModel().getColumn(0).setPreferredWidth(59);
-		liquorTable.getColumnModel().getColumn(1).setPreferredWidth(142);
-		liquorTable.getColumnModel().getColumn(2).setPreferredWidth(55);
-		liquorTable.getColumnModel().getColumn(3).setPreferredWidth(35);
-		liquorTable.getColumnModel().getColumn(4).setPreferredWidth(45);
-		
-		liquorTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
-		liquorTable.getColumnModel().getColumn(3).setCellRenderer(centerRenderer);
-		liquorTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer);
-		
-		liquorTable.getColumnModel().getColumn(4).setCellRenderer(new colorRenderer(Color.WHITE, new Color(135,49,51)));
-
-		liquorTable.setRowHeight(30);
-		
-		JScrollPane pulutan_scrollPane = new JScrollPane();
-		pulutan_scrollPane.setBounds(578, 67, 537, 650);
-		Inventory.add(pulutan_scrollPane);
-		
-		pulutanTable = new JTable();
-		pulutanTable.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				displayForEdit(pulutanTable);
-				int col = pulutanTable.getSelectedColumn();
-				int row = pulutanTable.getSelectedRow();
-				if(col == 4) {
-					String productName = pulutanTable.getValueAt(row, 1).toString();
-					int confirm = JOptionPane.showConfirmDialog(null,"Are you sure you want to delete "+productName+"?", "Confirm Delete Product",JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-					if(confirm == JOptionPane.YES_OPTION) {
-						pos.deletePulutan(productName);
-						editField_name.setText("");
-						editField_price.setText("");
-						editField_qty.setText("");
-						refreshTable(pulutanTable);
-					}
-				}
-			}
-		});
-		pulutanTable.setModel(new DefaultTableModel(
-			new Object[][] {
-			},
-			new String[] {
-				"Category", "Name", "Price", "Qty", "Delete"
-			}
-		) {
-			Class[] columnTypes = new Class[] {
-				String.class, String.class, Double.class, Integer.class, String.class
-			};
-			public Class getColumnClass(int columnIndex) {
-				return columnTypes[columnIndex];
-			}
-			boolean[] columnEditables = new boolean[] {
-				false, false, false, false, true
-			};
-			public boolean isCellEditable(int row, int column) {
-				return columnEditables[column];
-			}
-		});
-		pulutanTable.getColumnModel().getColumn(0).setPreferredWidth(59);
-		pulutanTable.getColumnModel().getColumn(1).setPreferredWidth(142);
-		pulutanTable.getColumnModel().getColumn(2).setPreferredWidth(55);
-		pulutanTable.getColumnModel().getColumn(3).setPreferredWidth(35);
-		pulutanTable.getColumnModel().getColumn(4).setPreferredWidth(45);
-		pulutan_scrollPane.setViewportView(pulutanTable);
-		pulutanTable.setFont(new Font("Segoe UI", Font.BOLD, 16));
-		
-		pulutanTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
-		pulutanTable.getColumnModel().getColumn(3).setCellRenderer(centerRenderer);
-		pulutanTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer);
-		
-		pulutanTable.getColumnModel().getColumn(4).setCellRenderer(new colorRenderer(Color.WHITE, new Color(135,49,51)));
-		
-		pulutanTable.setRowHeight(30);
-		
-		JButton btnRefresh = new JButton("");
-		btnRefresh.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				refreshTable(liquorTable);
-				refreshTable(pulutanTable);
-			}
-		});
-		btnRefresh.setIcon(new ImageIcon(POS.class.getResource("/img/btn-refresh.png")));
-		btnRefresh.setBounds(1306, 585, 57, 57);
-		Inventory.add(btnRefresh);
-		
-		JLabel inventoryBG = new JLabel("New label");
-		inventoryBG.setBounds(0, 0, 1520, 737);
-		inventoryBG.setIcon(new ImageIcon(POS.class.getResource("/img/pos-inventory-bg2.png")));
-		Inventory.add(inventoryBG);
 		
 		JPanel POS = new JPanel();
 		POS.setBounds(0, 88, 1520, 737);
